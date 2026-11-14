@@ -168,7 +168,7 @@ services:
 
   # firestore
   firestore:
-    image: "gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators"
+    image: "gcr.io/google.com/cloudsdktool/google-cloud-cli:554.0.0-emulators"
     container_name: "typeorm-firestore"
     command: "gcloud emulators firestore start --host-port=0.0.0.0:8080"
     ports:
