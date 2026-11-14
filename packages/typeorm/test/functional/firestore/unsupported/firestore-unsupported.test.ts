@@ -1,9 +1,10 @@
 import "reflect-metadata"
 import { expect } from "chai"
-import type { DataSource } from "../../../../src/data-source/DataSource"
+import { DataSource } from "../../../../src/data-source/DataSource"
 import {
     closeTestingConnections,
     createTestingConnections,
+    setupTestingConnections,
     reloadTestingDatabases,
 } from "../../../utils/test-utils"
 import { CompositePost } from "./entity/CompositePost"
@@ -58,19 +59,26 @@ describe("firestore > unsupported", () => {
         ]
 
         cases.forEach(([name, entities, message]) => {
-            it(`should reject ${name}`, async () => {
-                let error: Error | undefined
-                try {
-                    const dataSources = await createTestingConnections({
-                        entities,
-                        enabledDrivers: ["firestore"],
-                    })
-                    await closeTestingConnections(dataSources)
-                } catch (e) {
-                    error = e as Error
+            it(`should reject ${name}`, async function () {
+                const optionsList = setupTestingConnections({
+                    entities,
+                    enabledDrivers: ["firestore"],
+                })
+                if (!optionsList.length) return this.skip()
+
+                for (const options of optionsList) {
+                    const dataSource = new DataSource(options)
+                    let error: Error | undefined
+                    try {
+                        await dataSource.initialize()
+                    } catch (e) {
+                        error = e as Error
+                    }
+                    if (dataSource.isInitialized) await dataSource.destroy()
+                    expect(error, "expected connection to fail").to.not.be
+                        .undefined
+                    expect(error!.message).to.contain(message)
                 }
-                expect(error, "expected connection to fail").to.not.be.undefined
-                expect(error!.message).to.contain(message)
             })
         })
     })

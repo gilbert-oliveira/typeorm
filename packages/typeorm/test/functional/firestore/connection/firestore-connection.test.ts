@@ -38,11 +38,12 @@ describe("firestore > connection", () => {
             }),
         ))
 
-    it("should be disconnected after destroy", async () => {
+    it("should be disconnected after destroy", async function () {
         const [dataSource] = await createTestingConnections({
             entities: [Post],
             enabledDrivers: ["firestore"],
         })
+        if (!dataSource) return this.skip()
         await dataSource.destroy()
         expect(dataSource.isInitialized).to.be.false
     })
