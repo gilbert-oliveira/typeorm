@@ -419,6 +419,86 @@ export class FirestoreEntityManager extends EntityManager {
         return documents.map((document) => document.id)
     }
 
+    private unsupported(feature: string): never {
+        throw new TypeORMError(`${feature} is not supported by Firestore.`)
+    }
+
+    upsert(): never {
+        return this.unsupported("Upsert")
+    }
+
+    increment(): never {
+        return this.unsupported("Increment")
+    }
+
+    decrement(): never {
+        return this.unsupported("Decrement")
+    }
+
+    softDelete(): never {
+        return this.unsupported("Soft delete")
+    }
+
+    restore(): never {
+        return this.unsupported("Restore")
+    }
+
+    softRemove(): never {
+        return this.unsupported("Soft remove")
+    }
+
+    recover(): never {
+        return this.unsupported("Recover")
+    }
+
+    clear(): never {
+        return this.unsupported("Clear")
+    }
+
+    preload(): never {
+        return this.unsupported("Preload")
+    }
+
+    sum(): never {
+        return this.unsupported("Sum")
+    }
+
+    average(): never {
+        return this.unsupported("Average")
+    }
+
+    minimum(): never {
+        return this.unsupported("Minimum")
+    }
+
+    maximum(): never {
+        return this.unsupported("Maximum")
+    }
+
+    findByIds(): never {
+        return this.unsupported("Find by ids")
+    }
+
+    deleteAll(): never {
+        return this.unsupported("Delete all")
+    }
+
+    updateAll(): never {
+        return this.unsupported("Update all")
+    }
+
+    getTreeRepository(): never {
+        return this.unsupported("Tree repositories")
+    }
+
+    createQueryBuilder(): never {
+        return this.unsupported("Query builder")
+    }
+
+    query(): never {
+        return this.unsupported("Raw queries")
+    }
+
     private translator(): FirestoreFindOptionsTranslator {
         return new FirestoreFindOptionsTranslator(
             this.dataSource.driver as FirestoreDriver,

@@ -185,9 +185,7 @@ export class FirestoreDriver implements Driver {
         sql: string,
         parameters: ObjectLiteral,
     ): [string, any[]] {
-        throw new TypeORMError(
-            `This operation is not supported by Firestore driver.`,
-        )
+        throw new TypeORMError(`SQL escaping is not supported by Firestore.`)
     }
 
     escape(columnName: string): string {
@@ -263,25 +261,23 @@ export class FirestoreDriver implements Driver {
 
     normalizeDefault(columnMetadata: ColumnMetadata): string | undefined {
         throw new TypeORMError(
-            `Firestore is schema-less, not supported by this driver.`,
+            `Default value normalization is not supported by Firestore.`,
         )
     }
 
     normalizeIsUnique(column: ColumnMetadata): boolean {
         throw new TypeORMError(
-            `Firestore is schema-less, not supported by this driver.`,
+            `Unique normalization is not supported by Firestore.`,
         )
     }
 
     getColumnLength(column: ColumnMetadata): string {
-        throw new TypeORMError(
-            `Firestore is schema-less, not supported by this driver.`,
-        )
+        throw new TypeORMError(`Column length is not supported by Firestore.`)
     }
 
     createFullType(column: TableColumn): string {
         throw new TypeORMError(
-            `Firestore is schema-less, not supported by this driver.`,
+            `Full type creation is not supported by Firestore.`,
         )
     }
 
@@ -302,7 +298,7 @@ export class FirestoreDriver implements Driver {
         columnMetadatas: ColumnMetadata[],
     ): ColumnMetadata[] {
         throw new TypeORMError(
-            `Firestore is schema-less, not supported by this driver.`,
+            `Changed column detection is not supported by Firestore.`,
         )
     }
 
