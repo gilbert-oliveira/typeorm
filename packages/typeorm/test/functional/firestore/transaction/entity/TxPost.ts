@@ -10,6 +10,6 @@ export class TxPost {
     @Column()
     title: string
 
-    @Column({ default: 0 })
+    @Column()
     counter: number
 }

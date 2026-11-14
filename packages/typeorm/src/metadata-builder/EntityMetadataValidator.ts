@@ -310,6 +310,28 @@ export class EntityMetadataValidator {
             )
         )
             throw new TypeORMError("Firestore primary column must be a string.")
+
+        if (entityMetadata.uniques.length)
+            throw unsupported("Unique constraints")
+        if (entityMetadata.indices.length) throw unsupported("Indices")
+        if (entityMetadata.checks.length) throw unsupported("Check constraints")
+        if (entityMetadata.exclusions.length)
+            throw unsupported("Exclusion constraints")
+        if (
+            entityMetadata.columns.some(
+                (column) =>
+                    column.default !== undefined &&
+                    !column.isCreateDate &&
+                    !column.isUpdateDate,
+            )
+        )
+            throw unsupported("Column defaults")
+        if (
+            entityMetadata.columns.some(
+                (column) => column.isGenerated && !column.isPrimary,
+            )
+        )
+            throw unsupported("Generated columns")
     }
 
     /**

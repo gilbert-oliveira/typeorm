@@ -7,9 +7,14 @@ import {
     setupTestingConnections,
     reloadTestingDatabases,
 } from "../../../utils/test-utils"
+import { CheckPost } from "./entity/CheckPost"
 import { CompositePost } from "./entity/CompositePost"
+import { DefaultPost } from "./entity/DefaultPost"
 import { EmbeddedPost } from "./entity/EmbeddedPost"
+import { ExclusionPost } from "./entity/ExclusionPost"
+import { GeneratedColumnPost } from "./entity/GeneratedColumnPost"
 import { GeneratedPost } from "./entity/GeneratedPost"
+import { IndexedPost } from "./entity/IndexedPost"
 import { InheritanceChildPost, InheritancePost } from "./entity/InheritancePost"
 import { NoPrimaryPost } from "./entity/NoPrimaryPost"
 import { NumberPost } from "./entity/NumberPost"
@@ -17,6 +22,8 @@ import { Post } from "./entity/Post"
 import { RelationPost } from "./entity/RelationPost"
 import { SoftDeletePost } from "./entity/SoftDeletePost"
 import { TreePost } from "./entity/TreePost"
+import { UniqueColumnPost } from "./entity/UniqueColumnPost"
+import { UniqueDecoratorPost } from "./entity/UniqueDecoratorPost"
 import { VersionPost } from "./entity/VersionPost"
 
 describe("firestore > unsupported", () => {
@@ -55,6 +62,41 @@ describe("firestore > unsupported", () => {
                 "tree entities",
                 [TreePost],
                 "Tree entities is not supported by Firestore.",
+            ],
+            [
+                "unique columns",
+                [UniqueColumnPost],
+                "Unique constraints is not supported by Firestore.",
+            ],
+            [
+                "unique decorator",
+                [UniqueDecoratorPost],
+                "Unique constraints is not supported by Firestore.",
+            ],
+            [
+                "indices",
+                [IndexedPost],
+                "Indices is not supported by Firestore.",
+            ],
+            [
+                "check constraints",
+                [CheckPost],
+                "Check constraints is not supported by Firestore.",
+            ],
+            [
+                "exclusion constraints",
+                [ExclusionPost],
+                "Exclusion constraints is not supported by Firestore.",
+            ],
+            [
+                "column defaults",
+                [DefaultPost],
+                "Column defaults is not supported by Firestore.",
+            ],
+            [
+                "generated non-primary columns",
+                [GeneratedColumnPost],
+                "Generated columns is not supported by Firestore.",
             ],
         ]
 
