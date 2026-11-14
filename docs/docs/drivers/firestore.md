@@ -28,7 +28,7 @@ npm install firebase-admin
 
 - `databaseId` - Firestore database id. Default: `"(default)"`.
 
-- `driver` - The driver object. Defaults to `require("firebase-admin")`.
+- `driver` - A custom module used instead of `firebase-admin`. By default the driver loads `firebase-admin/app` and `firebase-admin/firestore`. The object you provide must expose `initializeApp`, `deleteApp`, `getFirestore` and `FieldPath`.
 
 Firestore has no `database`, `host`, `port`, `username` or `password` options.
 
@@ -71,7 +71,7 @@ export FIRESTORE_EMULATOR_HOST=localhost:8080
 
 An entity is mapped to a collection, named after the entity table name. Each saved entity is a document in that collection.
 
-An entity must have exactly one primary column, and it must be of type `string`. Its value is the document id and is **not** stored in the document data. Use either:
+An entity must have exactly one primary column, and it must be of a string-like type (`string`, `varchar`, `text` or `uuid`). Its value is the document id and is **not** stored in the document data. Use either:
 
 - `@PrimaryColumn()` - you provide the id.
 - `@PrimaryGeneratedColumn("uuid")` - TypeORM generates the id.
@@ -110,7 +110,7 @@ export class Post {
 
 Rules:
 
-- Ids must be valid Firestore document ids. Empty strings, `"."`, `".."` and values containing `/` are rejected with a `TypeORMError`.
+- Ids must be valid Firestore document ids. Empty strings, `"."`, `".."`, values containing `/`, values matching `__.*__` and values longer than 1500 UTF-8 bytes are rejected with a `TypeORMError`.
 - Nullable columns that are absent when an entity is inserted are stored as `null`.
 - `Date` values are stored as Firestore `Timestamp` and read back as `Date`.
 - `@CreateDateColumn()` and `@UpdateDateColumn()` are filled by TypeORM on the client, not by the database.
@@ -176,7 +176,7 @@ await myDataSource.firestoreManager.find(User, {
 ## Saving, updating and removing
 
 - `save()` of a new entity creates the document. `save()` of an existing entity writes only the changed columns, using a Firestore `update`. If the document is deleted concurrently, the write fails with the SDK `NOT_FOUND` error.
-- `update()` and `delete()` only count documents that exist.
+- `update()` and `delete()` only count documents that exist. Their criteria must be an id, a non-empty array of ids or a non-empty `where` object with defined values; anything else throws a `TypeORMError` and nothing is written.
 - `save()` and `remove()` run in a transaction by default.
 - Writes outside of a transaction are sent in batches of up to 500 operations.
 
@@ -242,6 +242,12 @@ The following throw a `TypeORMError` with the message `<feature> is not supporte
 - Soft delete: `@DeleteDateColumn`, `softDelete`, `softRemove`, `restore`, `recover` and the `withDeleted` option
 - `@VersionColumn`
 - Table inheritance and tree entities
+- `unique` columns and `@Unique`
+- `@Index`
+- `@Check` and `@Exclusion`
+- Column `default` values (except `@CreateDateColumn` and `@UpdateDateColumn`)
+- `@Generated` on non-primary columns
+- Isolation levels and `nulls` in `order`
 - Migrations
 - `upsert`, `increment`, `decrement`
 - `clear`, `preload`, `findByIds`
