@@ -350,7 +350,14 @@ export class FirestoreEntityManager extends EntityManager {
 
         if (directIds.length === items.length) {
             directIds.forEach((id) => assertValidDocumentId(id))
-            return directIds
+            const uniqueIds = [...new Set(directIds)]
+            const existing =
+                await this.firestoreQueryRunner.adapter.getDocuments(
+                    metadata.tableName,
+                    uniqueIds,
+                    this.firestoreQueryRunner.transaction,
+                )
+            return existing.map((document) => document.id)
         }
 
         const query = this.translator().translate(metadata, {

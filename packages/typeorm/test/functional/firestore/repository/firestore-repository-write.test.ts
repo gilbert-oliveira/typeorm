@@ -180,4 +180,29 @@ describe("firestore > repository > write", () => {
                 expect(await repository.count()).to.equal(510)
             }),
         ))
+
+    it("should not fail or count when updating a missing document", () =>
+        Promise.all(
+            dataSources.map(async (dataSource) => {
+                const result = await dataSource
+                    .getRepository(WritePost)
+                    .update({ id: "missing" }, { title: "z" })
+                expect(result.affected).to.equal(0)
+            }),
+        ))
+
+    it("should count only existing documents on delete", () =>
+        Promise.all(
+            dataSources.map(async (dataSource) => {
+                const repository = dataSource.getRepository(WritePost)
+                await repository.save(new WritePost({ id: "1", title: "a" }))
+                expect((await repository.delete("missing")).affected).to.equal(
+                    0,
+                )
+                expect(
+                    (await repository.delete(["1", "missing"])).affected,
+                ).to.equal(1)
+                expect(await repository.count()).to.equal(0)
+            }),
+        ))
 })
