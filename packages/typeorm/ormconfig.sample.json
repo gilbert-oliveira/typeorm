@@ -52,6 +52,13 @@
   {
     "skip": false,
     "disabledIfNotEnabledImplicitly": true,
+    "type": "firestore",
+    "projectId": "typeorm-test",
+    "logging": false
+  },
+  {
+    "skip": false,
+    "disabledIfNotEnabledImplicitly": true,
     "type": "mongodb",
     "host": "localhost",
     "port": 27017,

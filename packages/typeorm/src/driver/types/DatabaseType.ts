@@ -9,6 +9,7 @@ export type DatabaseType =
     | "cockroachdb"
     | "cordova"
     | "expo"
+    | "firestore"
     | "mariadb"
     | "mongodb"
     | "mssql"

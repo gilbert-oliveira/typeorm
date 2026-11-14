@@ -61,6 +61,11 @@ export class EntityMetadataValidator {
         allEntityMetadatas: EntityMetadata[],
         driver: Driver,
     ) {
+        if (driver.options.type === "firestore") {
+            this.validateFirestore(entityMetadata)
+            return
+        }
+
         // check if table metadata has an id
         if (!entityMetadata.primaryColumns.length && !entityMetadata.isJunction)
             throw new MissingPrimaryColumnError(entityMetadata)
@@ -267,6 +272,66 @@ export class EntityMetadataValidator {
                         `This may lead to unexpected circular removals. Please set cascade remove only from one side of relationship.`,
                 )
         }) // todo: maybe better just deny removal from one to one relation without join column?
+    }
+
+    protected validateFirestore(entityMetadata: EntityMetadata) {
+        const unsupported = (feature: string) =>
+            new TypeORMError(`${feature} is not supported by Firestore.`)
+
+        if (
+            entityMetadata.tableType === "entity-child" ||
+            entityMetadata.inheritancePattern
+        )
+            throw unsupported("Table inheritance")
+        if (entityMetadata.treeType) throw unsupported("Tree entities")
+        if (entityMetadata.relations.length) throw unsupported("Relations")
+        if (entityMetadata.embeddeds.length)
+            throw unsupported("Embedded columns")
+        if (entityMetadata.deleteDateColumn) throw unsupported("Soft delete")
+        if (entityMetadata.versionColumn) throw unsupported("Version columns")
+        if (entityMetadata.primaryColumns.length !== 1)
+            throw new TypeORMError(
+                "Firestore entities must have exactly one primary column.",
+            )
+
+        const primary = entityMetadata.primaryColumns[0]
+        if (
+            primary.generationStrategy === "increment" ||
+            primary.generationStrategy === "rowid" ||
+            primary.generatedIdentity
+        )
+            throw unsupported("Generated numeric primary keys")
+        const stringTypes = ["string", "varchar", "text", "uuid"]
+        if (
+            primary.type !== String &&
+            !(
+                typeof primary.type === "string" &&
+                stringTypes.includes(primary.type)
+            )
+        )
+            throw new TypeORMError("Firestore primary column must be a string.")
+
+        if (entityMetadata.uniques.length)
+            throw unsupported("Unique constraints")
+        if (entityMetadata.indices.length) throw unsupported("Indices")
+        if (entityMetadata.checks.length) throw unsupported("Check constraints")
+        if (entityMetadata.exclusions.length)
+            throw unsupported("Exclusion constraints")
+        if (
+            entityMetadata.columns.some(
+                (column) =>
+                    column.default !== undefined &&
+                    !column.isCreateDate &&
+                    !column.isUpdateDate,
+            )
+        )
+            throw unsupported("Column defaults")
+        if (
+            entityMetadata.columns.some(
+                (column) => column.isGenerated && !column.isPrimary,
+            )
+        )
+            throw unsupported("Generated columns")
     }
 
     /**

@@ -9,6 +9,7 @@ import type { RemoveOptions } from "../repository/RemoveOptions"
 import type { SaveOptions } from "../repository/SaveOptions"
 import { NoNeedToReleaseEntityManagerError } from "../error/NoNeedToReleaseEntityManagerError"
 import { MongoRepository } from "../repository/MongoRepository"
+import { FirestoreRepository } from "../repository/FirestoreRepository"
 import { TreeRepository } from "../repository/TreeRepository"
 import { Repository } from "../repository/Repository"
 import { PlainObjectToNewEntityTransformer } from "../query-builder/transformer/PlainObjectToNewEntityTransformer"
@@ -1530,6 +1531,14 @@ export class EntityManager {
         // if repository was not found then create it, store its instance and return it
         if (this.dataSource.driver.options.type === "mongodb") {
             const newRepository = new MongoRepository(
+                target,
+                this,
+                this.queryRunner,
+            )
+            this.repositories.set(target, newRepository)
+            return newRepository
+        } else if (this.dataSource.driver.options.type === "firestore") {
+            const newRepository = new FirestoreRepository(
                 target,
                 this,
                 this.queryRunner,

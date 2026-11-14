@@ -758,7 +758,11 @@ export class EntityMetadataBuilder {
             })
 
         // Only PostgreSQL supports exclusion constraints.
-        if (this.dataSource.driver.options.type === "postgres") {
+        // Firestore keeps them so that its validator can reject them.
+        if (
+            this.dataSource.driver.options.type === "postgres" ||
+            this.dataSource.driver.options.type === "firestore"
+        ) {
             entityMetadata.exclusions = this.metadataArgsStorage
                 .filterExclusions(entityMetadata.inheritanceTree)
                 .map((args) => {

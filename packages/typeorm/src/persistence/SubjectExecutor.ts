@@ -384,6 +384,27 @@ export class SubjectExecutor {
                     bulkInsertMaps.push(subject.entity!)
                 })
             } else if (
+                this.queryRunner.dataSource.driver.options.type === "firestore"
+            ) {
+                subjects.forEach((subject) => {
+                    if (subject.metadata.createDateColumn && subject.entity) {
+                        subject.entity[
+                            subject.metadata.createDateColumn.propertyName
+                        ] = new Date()
+                    }
+
+                    if (subject.metadata.updateDateColumn && subject.entity) {
+                        subject.entity[
+                            subject.metadata.updateDateColumn.propertyName
+                        ] = new Date()
+                    }
+
+                    subject.createValueSetAndPopChangeMap()
+
+                    bulkInsertSubjects.push(subject)
+                    bulkInsertMaps.push(subject.entity!)
+                })
+            } else if (
                 this.queryRunner.dataSource.driver.options.type === "oracle"
             ) {
                 subjects.forEach((subject) => {
@@ -416,6 +437,20 @@ export class SubjectExecutor {
             // for mongodb we have a bit different insertion logic
             if (
                 InstanceChecker.isMongoEntityManager(this.queryRunner.manager)
+            ) {
+                const insertResult = await this.queryRunner.manager.insert(
+                    subjects[0].metadata.target,
+                    bulkInsertMaps,
+                )
+                subjects.forEach((subject, index) => {
+                    subject.identifier = insertResult.identifiers[index]
+                    subject.generatedMap = insertResult.generatedMaps[index]
+                    subject.insertedValueSet = bulkInsertMaps[index]
+                })
+            } else if (
+                InstanceChecker.isFirestoreEntityManager(
+                    this.queryRunner.manager,
+                )
             ) {
                 const insertResult = await this.queryRunner.manager.insert(
                     subjects[0].metadata.target,
@@ -551,6 +586,28 @@ export class SubjectExecutor {
                     subject.identifier,
                     partialEntity,
                 )
+            } else if (
+                InstanceChecker.isFirestoreEntityManager(
+                    this.queryRunner.manager,
+                )
+            ) {
+                const partialEntity = subject.createValueSetAndPopChangeMap()
+                const updateDateColumn = subject.metadata.updateDateColumn
+                if (updateDateColumn) {
+                    const updatedAt = new Date()
+                    updateDateColumn.setEntityValue(partialEntity, updatedAt)
+                    if (subject.entity) {
+                        updateDateColumn.setEntityValue(
+                            subject.entity,
+                            updatedAt,
+                        )
+                    }
+                }
+                await this.queryRunner.manager.updateByIdentifierInternal(
+                    subject.metadata.target,
+                    subject.identifier,
+                    partialEntity,
+                )
             } else {
                 const updateMap: ObjectLiteral =
                     subject.createValueSetAndPopChangeMap()
@@ -678,6 +735,15 @@ export class SubjectExecutor {
             ) {
                 const manager = this.queryRunner.manager as MongoEntityManager
                 await manager.delete(subjects[0].metadata.target, deleteMaps)
+            } else if (
+                InstanceChecker.isFirestoreEntityManager(
+                    this.queryRunner.manager,
+                )
+            ) {
+                await this.queryRunner.manager.deleteByIdentifiersInternal(
+                    subjects[0].metadata.target,
+                    deleteMaps,
+                )
             } else {
                 // for tree tables we execute additional queries
                 switch (subjects[0].metadata.treeType) {

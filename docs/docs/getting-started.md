@@ -9,7 +9,7 @@ that help you to develop any kind of application that uses databases - from
 small applications with a few tables to large-scale enterprise applications
 with multiple databases.
 
-TypeORM supports more databases than any other JS/TS ORM: [Google Spanner](./drivers/google-spanner.md), [Microsoft SqlServer](./drivers/microsoft-sqlserver.md), [MongoDB](./drivers/mongodb.md), [MySQL/MariaDB](./drivers/mysql.md), [Oracle](./drivers/oracle.md), [Postgres](./drivers/postgres.md), [SAP HANA](./drivers/sap.md) and [SQLite](./drivers/sqlite.md), as well as derived databases and different drivers.
+TypeORM supports more databases than any other JS/TS ORM: [Firestore](./drivers/firestore.md), [Google Spanner](./drivers/google-spanner.md), [Microsoft SqlServer](./drivers/microsoft-sqlserver.md), [MongoDB](./drivers/mongodb.md), [MySQL/MariaDB](./drivers/mysql.md), [Oracle](./drivers/oracle.md), [Postgres](./drivers/postgres.md), [SAP HANA](./drivers/sap.md) and [SQLite](./drivers/sqlite.md), as well as derived databases and different drivers.
 
 TypeORM supports both [Active Record](./guides/1-active-record-data-mapper.md#what-is-the-active-record-pattern) and [Data Mapper](./guides/1-active-record-data-mapper.md#what-is-the-data-mapper-pattern) patterns,
 unlike all other JavaScript ORMs currently in existence,
@@ -50,7 +50,7 @@ TypeORM is highly influenced by other ORMs, such as [Hibernate](http://hibernate
 - Supports closure table pattern.
 - Schema declaration in models or separate configuration files.
 - Supports MySQL / MariaDB / Postgres / CockroachDB / SQLite / Microsoft SQL Server / Oracle / SAP Hana / sql.js.
-- Supports MongoDB NoSQL database.
+- Supports MongoDB and Firestore NoSQL databases.
 - Works in Node.js / Browser / Ionic / Cordova / React Native / NativeScript / Expo / Electron platforms.
 - TypeScript and JavaScript support.
 - ESM and CommonJS support.
@@ -164,7 +164,7 @@ await timber.remove()
 
     `npm install @types/node --save-dev`
 
-4. Install a database driver: see the documentation for each particular driver: [mongodb](./drivers/mongodb.md#installation), [mssql](./drivers/microsoft-sqlserver.md#installation), [mysql/mariadb](./drivers/mysql.md#installation), [oracle](./drivers/oracle.md#installation), [postgres](./drivers/postgres.md#installation), [sap](./drivers/sap.md#installation), [spanner](./drivers/google-spanner.md#installation), [sqlite](./drivers/sqlite.md#installation).
+4. Install a database driver: see the documentation for each particular driver: [firestore](./drivers/firestore.md#installation), [mongodb](./drivers/mongodb.md#installation), [mssql](./drivers/microsoft-sqlserver.md#installation), [mysql/mariadb](./drivers/mysql.md#installation), [oracle](./drivers/oracle.md#installation), [postgres](./drivers/postgres.md#installation), [sap](./drivers/sap.md#installation), [spanner](./drivers/google-spanner.md#installation), [sqlite](./drivers/sqlite.md#installation).
 
 ### TypeScript configuration
 

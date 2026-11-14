@@ -19,6 +19,8 @@ import type { Logger } from "../logger/Logger"
 import type { MigrationInterface } from "../migration/MigrationInterface"
 import { MigrationExecutor } from "../migration/MigrationExecutor"
 import type { Migration } from "../migration/Migration"
+import type { FirestoreEntityManager } from "../entity-manager/FirestoreEntityManager"
+import type { FirestoreRepository } from "../repository/FirestoreRepository"
 import type { MongoRepository } from "../repository/MongoRepository"
 import type { MongoEntityManager } from "../entity-manager/MongoEntityManager"
 import { EntityMetadataValidator } from "../metadata-builder/EntityMetadataValidator"
@@ -173,6 +175,23 @@ export class DataSource {
             )
 
         return this.manager as MongoEntityManager
+    }
+
+    /**
+     * Gets the firestore entity manager that allows to perform firestore-specific repository operations
+     * with any entity in this connection.
+     *
+     * Available only in firestore connections.
+     *
+     * @returns the firestore entity manager
+     */
+    get firestoreManager(): FirestoreEntityManager {
+        if (!InstanceChecker.isFirestoreEntityManager(this.manager))
+            throw new TypeORMError(
+                `FirestoreEntityManager is only available for Firestore databases.`,
+            )
+
+        return this.manager as FirestoreEntityManager
     }
 
     /**
@@ -520,6 +539,23 @@ export class DataSource {
     }
 
     /**
+     * Gets firestore-specific repository for the given entity class or name.
+     * Works only if connection is firestore-specific.
+     *
+     * @param target
+     */
+    getFirestoreRepository<Entity extends ObjectLiteral>(
+        target: EntityTarget<Entity>,
+    ): FirestoreRepository<Entity> {
+        if (!(this.driver.options.type === "firestore"))
+            throw new TypeORMError(
+                `You can use getFirestoreRepository only for Firestore connections.`,
+            )
+
+        return this.manager.getRepository(target) as any
+    }
+
+    /**
      * Executes raw SQL query and returns raw database results.
      *
      * @param query
@@ -535,6 +571,9 @@ export class DataSource {
     ): Promise<T> {
         if (InstanceChecker.isMongoEntityManager(this.manager))
             throw new TypeORMError(`Queries aren't supported by MongoDB.`)
+
+        if (InstanceChecker.isFirestoreEntityManager(this.manager))
+            throw new TypeORMError(`Raw queries is not supported by Firestore.`)
 
         if (queryRunner?.isReleased)
             throw new QueryRunnerProviderAlreadyReleasedError()
@@ -602,6 +641,11 @@ export class DataSource {
     ): SelectQueryBuilder<Entity> {
         if (InstanceChecker.isMongoEntityManager(this.manager))
             throw new TypeORMError(`Query Builder is not supported by MongoDB.`)
+
+        if (InstanceChecker.isFirestoreEntityManager(this.manager))
+            throw new TypeORMError(
+                `Query Builder is not supported by Firestore.`,
+            )
 
         if (alias) {
             alias = DriverUtils.buildAlias(this.driver, undefined, alias)

@@ -74,6 +74,27 @@ jobs:
         with:
           name: cockroachdb-${{ matrix.shard }}-node-${{ inputs.node-version }}-linux
 
+  firestore:
+    runs-on: ubuntu-latest
+    env:
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs.node-version }}
+          download-build: true
+
+      - run: docker run -d -p 8080:8080 gcr.io/google.com/cloudsdktool/google-cloud-cli:554.0.0-emulators gcloud emulators firestore start --host-port=0.0.0.0:8080
+      - run: timeout 60 bash -c 'until curl -sf localhost:8080; do sleep 2; done'
+
+      - run: jq 'map(select(.type == "firestore"))' ormconfig.sample.json > ormconfig.json
+      - run: pnpm exec c8 pnpm run test:ci
+
+      - uses: ./.github/actions/upload-coverage
+        with:
+          name: firestore-node-${{ inputs.node-version }}-linux
+
   mongodb:
     runs-on: ubuntu-latest
     services:
