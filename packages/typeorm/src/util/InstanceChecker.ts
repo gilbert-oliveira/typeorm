@@ -1,3 +1,4 @@
+import type { FirestoreEntityManager } from "../entity-manager/FirestoreEntityManager"
 import type { MongoEntityManager } from "../entity-manager/MongoEntityManager"
 import type { SqljsEntityManager } from "../entity-manager/SqljsEntityManager"
 import type { EntitySchema } from "../entity-schema/EntitySchema"
@@ -74,6 +75,11 @@ export class InstanceChecker {
     }
     static isMongoEntityManager(obj: unknown): obj is MongoEntityManager {
         return this.check(obj, "MongoEntityManager")
+    }
+    static isFirestoreEntityManager(
+        obj: unknown,
+    ): obj is FirestoreEntityManager {
+        return this.check(obj, "FirestoreEntityManager")
     }
     static isSqljsEntityManager(obj: unknown): obj is SqljsEntityManager {
         return this.check(obj, "SqljsEntityManager")

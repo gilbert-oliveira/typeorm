@@ -1,6 +1,7 @@
 import type { DataSource as dataSource } from "../data-source/DataSource"
 import { EntityManager } from "./EntityManager"
 import { MongoEntityManager } from "./MongoEntityManager"
+import { FirestoreEntityManager } from "./FirestoreEntityManager"
 import { SqljsEntityManager } from "./SqljsEntityManager"
 import type { QueryRunner } from "../query-runner/QueryRunner"
 
@@ -18,6 +19,9 @@ export class EntityManagerFactory {
     create(dataSource: dataSource, queryRunner?: QueryRunner): EntityManager {
         if (dataSource.driver.options.type === "mongodb")
             return new MongoEntityManager(dataSource)
+
+        if (dataSource.driver.options.type === "firestore")
+            return new FirestoreEntityManager(dataSource, queryRunner)
 
         if (dataSource.driver.options.type === "sqljs")
             return new SqljsEntityManager(dataSource, queryRunner)
