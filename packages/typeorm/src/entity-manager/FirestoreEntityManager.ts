@@ -1,4 +1,3 @@
-import type { DataSource } from "../data-source/DataSource"
 import type { EntityTarget } from "../common/EntityTarget"
 import type { ObjectLiteral } from "../common/ObjectLiteral"
 import { assertValidDocumentId } from "../driver/firestore/FirestoreDocumentId"
@@ -13,7 +12,6 @@ import type { FindManyOptions } from "../find-options/FindManyOptions"
 import type { FindOneOptions } from "../find-options/FindOneOptions"
 import type { FindOptionsWhere } from "../find-options/FindOptionsWhere"
 import type { EntityMetadata } from "../metadata/EntityMetadata"
-import type { QueryRunner } from "../query-runner/QueryRunner"
 import { EntityManager } from "./EntityManager"
 import { TypeORMError } from "../error/TypeORMError"
 import { DeleteResult } from "../query-builder/result/DeleteResult"
@@ -27,15 +25,15 @@ export class FirestoreEntityManager extends EntityManager {
 
     private defaultQueryRunner?: FirestoreQueryRunner
 
-    constructor(dataSource: DataSource, queryRunner?: QueryRunner) {
-        super(dataSource, queryRunner)
-    }
-
     get firestoreQueryRunner(): FirestoreQueryRunner {
         if (this.queryRunner) return this.queryRunner as FirestoreQueryRunner
-        this.defaultQueryRunner ??= this.dataSource.driver.createQueryRunner(
-            "master",
-        ) as FirestoreQueryRunner
+        if (!this.defaultQueryRunner) {
+            const runner = this.dataSource.driver.createQueryRunner(
+                "master",
+            ) as FirestoreQueryRunner
+            Object.assign(runner, { manager: this })
+            this.defaultQueryRunner = runner
+        }
         return this.defaultQueryRunner
     }
 
@@ -65,7 +63,7 @@ export class FirestoreEntityManager extends EntityManager {
         options: FindOneOptions<Entity>,
     ): Promise<Entity | null> {
         if (!options.where) {
-            throw new Error(
+            throw new TypeORMError(
                 `You must provide selection conditions in order to find a single row.`,
             )
         }
@@ -366,36 +364,10 @@ export class FirestoreEntityManager extends EntityManager {
         metadata: EntityMetadata,
         criteria: unknown,
     ): Promise<string[]> {
-        if (
-            criteria === undefined ||
-            criteria === null ||
-            criteria === "" ||
-            (Array.isArray(criteria) && criteria.length === 0)
-        ) {
-            throw new TypeORMError(
-                `Empty criteria(s) are not allowed for the Firestore write operations.`,
-            )
-        }
-
         const primary = metadata.primaryColumns[0]
-        const items = Array.isArray(criteria) ? criteria : [criteria]
-        const directIds: string[] = []
-        for (const item of items) {
-            if (typeof item === "string") {
-                directIds.push(item)
-                continue
-            }
-            const keys =
-                item && typeof item === "object" ? Object.keys(item) : []
-            const value =
-                keys.length === 1 && keys[0] === primary.propertyName
-                    ? (item as ObjectLiteral)[keys[0]]
-                    : undefined
-            if (typeof value !== "string") break
-            directIds.push(value)
-        }
+        const directIds = this.extractDirectIds(primary.propertyName, criteria)
 
-        if (directIds.length === items.length) {
+        if (directIds) {
             directIds.forEach((id) => assertValidDocumentId(id))
             const uniqueIds = [...new Set(directIds)]
             const existing =
@@ -417,6 +389,59 @@ export class FirestoreEntityManager extends EntityManager {
             runner.transaction,
         )
         return documents.map((document) => document.id)
+    }
+
+    private extractDirectIds(
+        primaryPropertyName: string,
+        criteria: unknown,
+    ): string[] | undefined {
+        if (typeof criteria === "string" && criteria !== "") return [criteria]
+
+        if (Array.isArray(criteria)) {
+            if (
+                criteria.length > 0 &&
+                criteria.every((item) => typeof item === "string" && item)
+            ) {
+                return criteria
+            }
+            throw this.invalidCriteria()
+        }
+
+        if (
+            criteria === null ||
+            typeof criteria !== "object" ||
+            !this.isPlainObject(criteria)
+        ) {
+            throw this.invalidCriteria()
+        }
+
+        const entries = Object.entries(criteria)
+        if (
+            entries.length === 0 ||
+            entries.some(([, value]) => value === undefined)
+        ) {
+            throw this.invalidCriteria()
+        }
+
+        if (
+            entries.length === 1 &&
+            entries[0][0] === primaryPropertyName &&
+            typeof entries[0][1] === "string"
+        ) {
+            return [entries[0][1]]
+        }
+        return undefined
+    }
+
+    private isPlainObject(value: object): boolean {
+        const proto = Object.getPrototypeOf(value)
+        return proto === Object.prototype || proto === null
+    }
+
+    private invalidCriteria(): TypeORMError {
+        return new TypeORMError(
+            `Criteria must be an id, a non-empty array of ids or a non-empty where object with defined values for the Firestore write operations.`,
+        )
     }
 
     private unsupported(feature: string): never {
