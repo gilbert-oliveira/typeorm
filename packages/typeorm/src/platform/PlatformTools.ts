@@ -55,6 +55,11 @@ export class PlatformTools {
                 // Google Cloud Spanner
                 case "@google-cloud/spanner":
                     return require("@google-cloud/spanner")
+                // Firestore
+                case "firebase-admin/app":
+                    return require("firebase-admin/app")
+                case "firebase-admin/firestore":
+                    return require("firebase-admin/firestore")
                 // Microsoft SQL Server
                 case "mssql":
                     return require("mssql")

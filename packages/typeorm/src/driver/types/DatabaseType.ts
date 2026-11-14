@@ -10,6 +10,7 @@ export type DatabaseType =
     | "cordova"
     | "expo"
     | "mariadb"
+    | "firestore"
     | "mongodb"
     | "mssql"
     | "mysql"
