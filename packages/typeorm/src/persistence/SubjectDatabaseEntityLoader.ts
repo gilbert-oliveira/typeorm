@@ -4,6 +4,7 @@ import type { QueryRunner } from "../query-runner/QueryRunner"
 import type { FindManyOptions } from "../find-options/FindManyOptions"
 import type { MongoRepository } from "../repository/MongoRepository"
 import { OrmUtils } from "../util/OrmUtils"
+import { InstanceChecker } from "../util/InstanceChecker"
 
 /**
  * Loads database entities for all operate subjects which do not have database entity set.
@@ -117,6 +118,19 @@ export class SubjectDatabaseEntityLoader {
                         subjectGroup.target,
                     ) as MongoRepository<ObjectLiteral>
                 entities = await mongoRepo.findByIds(allIds, findOptions)
+            } else if (
+                InstanceChecker.isFirestoreEntityManager(
+                    this.queryRunner.manager,
+                )
+            ) {
+                const primaryColumn = allSubjects[0].metadata.primaryColumns[0]
+                const ids = allIds.map(
+                    (id) => primaryColumn.getEntityValue(id) as string,
+                )
+                entities = await this.queryRunner.manager.findByIdsInternal(
+                    subjectGroup.target,
+                    ids,
+                )
             } else {
                 entities = await this.queryRunner.manager
                     .getRepository<ObjectLiteral>(subjectGroup.target)
