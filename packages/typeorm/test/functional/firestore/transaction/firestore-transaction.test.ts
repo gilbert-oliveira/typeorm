@@ -187,4 +187,22 @@ describe("firestore > transaction", () => {
                 )
             }),
         ))
+
+    it("should reject isolation levels", () =>
+        Promise.all(
+            dataSources.map(async (dataSource) => {
+                const queryRunner = dataSource.createQueryRunner()
+                let message = ""
+                try {
+                    await queryRunner.startTransaction("SERIALIZABLE")
+                } catch (e) {
+                    message = (e as Error).message
+                }
+                await queryRunner.release()
+                expect(message).to.equal(
+                    "Isolation levels is not supported by Firestore.",
+                )
+                expect(queryRunner.isTransactionActive).to.be.false
+            }),
+        ))
 })

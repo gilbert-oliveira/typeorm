@@ -19,10 +19,6 @@ export class AdminFirestoreAdapter implements FirestoreAdapter {
         protected onClose: () => Promise<void>,
     ) {}
 
-    newDocumentId(collection: string): string {
-        return this.firestore.collection(collection).doc().id
-    }
-
     async getDocuments(
         collection: string,
         ids: string[],

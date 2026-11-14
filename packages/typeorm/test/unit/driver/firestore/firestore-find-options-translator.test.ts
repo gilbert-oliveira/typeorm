@@ -3,6 +3,7 @@ import {
     Between,
     DataSource,
     EntitySchema,
+    FindOperator,
     In,
     IsNull,
     LessThan,
@@ -24,12 +25,21 @@ const PostSchema = new EntitySchema<any>({
         id: { type: String, primary: true },
         title: { type: String },
         views: { type: Number, name: "view_count" },
+        stamp: {
+            type: "timestamp",
+            nullable: true,
+            transformer: {
+                to: (value: string) => new Date(value),
+                from: (value: Date) => value.toISOString(),
+            },
+        },
     },
 })
 
 describe("FirestoreFindOptionsTranslator", () => {
     let translator: FirestoreFindOptionsTranslator
     let metadata: EntityMetadata
+    let driver: FirestoreDriver
 
     before(async () => {
         const dataSource = new DataSource({
@@ -39,6 +49,7 @@ describe("FirestoreFindOptionsTranslator", () => {
         })
         await (dataSource as any).buildMetadatas()
         metadata = dataSource.getMetadata("Post")
+        driver = dataSource.driver as FirestoreDriver
         translator = new FirestoreFindOptionsTranslator(
             dataSource.driver as FirestoreDriver,
         )
@@ -174,5 +185,67 @@ describe("FirestoreFindOptionsTranslator", () => {
             { relationLoadStrategy: "query" },
             "relationLoadStrategy",
         )
+    })
+
+    it("should translate Not with IsNull", () => {
+        expect(
+            translator.translate(metadata, { where: { title: Not(IsNull()) } })
+                .filters,
+        ).to.deep.equal([{ field: "title", op: "!=", value: null }])
+    })
+
+    it("should reject unsupported Not children", () => {
+        expectUnsupported(
+            { where: { title: Not(Like("a%")) } },
+            "Not with like",
+        )
+    })
+
+    it("should reject In without an array", () => {
+        expect(() =>
+            translator.translate(metadata, {
+                where: { title: new FindOperator("in", "a" as any) },
+            }),
+        )
+            .to.throw(TypeORMError)
+            .with.property("message", "In requires an array of values.")
+    })
+
+    it("should reject unknown properties", () => {
+        expect(() =>
+            translator.translate(metadata, { where: { nope: "a" } as any }),
+        )
+            .to.throw(TypeORMError)
+            .with.property(
+                "message",
+                'Property "nope" was not found in "Post" as a column.',
+            )
+    })
+
+    it("should reject nulls ordering", () => {
+        expectUnsupported(
+            { order: { title: { direction: "ASC", nulls: "FIRST" } } },
+            "Nulls ordering",
+        )
+    })
+
+    it("should convert Date values through the column transformer", () => {
+        const [filter] = translator.translate(metadata, {
+            where: { stamp: "2020-01-01T00:00:00.000Z" },
+        }).filters
+        expect(filter.value).to.be.instanceOf(Date)
+        expect((filter.value as Date).toISOString()).to.equal(
+            "2020-01-01T00:00:00.000Z",
+        )
+    })
+
+    it("should give transformers a Date when hydrating timestamps", () => {
+        const column = metadata.findColumnWithPropertyName("stamp")!
+        const date = new Date("2020-01-01T00:00:00.000Z")
+        const hydrated = driver.prepareHydratedValue(
+            { toDate: () => date },
+            column,
+        )
+        expect(hydrated).to.equal("2020-01-01T00:00:00.000Z")
     })
 })

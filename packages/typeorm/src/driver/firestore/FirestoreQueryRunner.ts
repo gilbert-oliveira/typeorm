@@ -93,6 +93,12 @@ export class FirestoreQueryRunner implements QueryRunner {
     async startTransaction(isolationLevel?: IsolationLevel): Promise<void> {
         if (this.isTransactionActive) throw new TransactionAlreadyStartedError()
 
+        if (isolationLevel !== undefined) {
+            throw new TypeORMError(
+                `Isolation levels is not supported by Firestore.`,
+            )
+        }
+
         this.isTransactionActive = true
         try {
             await this.broadcaster.broadcast("BeforeTransactionStart")

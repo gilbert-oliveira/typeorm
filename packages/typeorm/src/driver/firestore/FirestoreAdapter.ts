@@ -19,8 +19,6 @@ export type FirestoreWriteOperation =
     | { type: "delete"; collection: string; id: string }
 
 export interface FirestoreAdapter {
-    newDocumentId(collection: string): string
-
     getDocuments(
         collection: string,
         ids: string[],

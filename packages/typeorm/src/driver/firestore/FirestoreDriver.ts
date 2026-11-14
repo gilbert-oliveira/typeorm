@@ -115,10 +115,6 @@ export class FirestoreDriver implements Driver {
         enabled: false,
     }
 
-    protected app?: any
-
-    protected createdApp = false
-
     constructor(protected dataSource: DataSource) {
         this.options = dataSource.options as FirestoreDataSourceOptions
         this.loadDependencies()
@@ -141,12 +137,15 @@ export class FirestoreDriver implements Driver {
                 },
                 `typeorm-${RandomGenerator.uuidv4()}`,
             )
-            this.app = app
-            this.createdApp = true
-            firestore = this.firestoreModule.getFirestore(
-                app,
-                this.options.databaseId ?? "(default)",
-            )
+            try {
+                firestore = this.firestoreModule.getFirestore(
+                    app,
+                    this.options.databaseId ?? "(default)",
+                )
+            } catch (error) {
+                await this.appModule.deleteApp(app).catch(() => undefined)
+                throw error
+            }
             onClose = () => this.appModule.deleteApp(app)
         }
 
@@ -168,8 +167,6 @@ export class FirestoreDriver implements Driver {
 
         const adapter = this.adapter
         this.adapter = undefined as any
-        this.app = undefined
-        this.createdApp = false
         await adapter.close()
     }
 
@@ -228,14 +225,14 @@ export class FirestoreDriver implements Driver {
     }
 
     prepareHydratedValue(value: any, columnMetadata: ColumnMetadata): any {
+        if (value && typeof value.toDate === "function") {
+            value = value.toDate()
+        }
         if (columnMetadata.transformer)
             value = ApplyValueTransformers.transformFrom(
                 columnMetadata.transformer,
                 value,
             )
-        if (value && typeof value.toDate === "function") {
-            return value.toDate()
-        }
         return value
     }
 

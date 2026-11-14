@@ -36,7 +36,9 @@ export interface FirestoreDataSourceOptions extends BaseDataSourceOptions {
     readonly databaseId?: string
 
     /**
-     * The driver to use. Defaults to the firebase-admin package.
+     * Custom module used instead of firebase-admin. By default the driver
+     * loads firebase-admin/app and firebase-admin/firestore. It must expose
+     * initializeApp, deleteApp, getFirestore and FieldPath.
      */
     readonly driver?: any
 }

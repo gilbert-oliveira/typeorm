@@ -203,6 +203,13 @@ export class FirestoreFindOptionsTranslator {
             .filter(([, direction]) => direction !== undefined)
             .map(([propertyName, direction]) => {
                 const column = this.findColumn(metadata, propertyName)
+                if (
+                    direction &&
+                    typeof direction === "object" &&
+                    (direction as { nulls?: unknown }).nulls !== undefined
+                ) {
+                    this.throwUnsupported("Nulls ordering")
+                }
                 const raw =
                     direction && typeof direction === "object"
                         ? (direction as { direction?: unknown }).direction

@@ -52,9 +52,6 @@ describe("firestore > connection", () => {
         Promise.all(
             dataSources.map(async (dataSource) => {
                 const adapter = (dataSource.driver as FirestoreDriver).adapter
-                const generatedId = adapter.newDocumentId("post")
-                expect(generatedId).to.be.a("string").and.not.empty
-
                 await adapter.write([
                     {
                         type: "create",
