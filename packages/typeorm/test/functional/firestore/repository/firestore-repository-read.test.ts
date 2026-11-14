@@ -5,6 +5,12 @@ import type { FirestoreDriver } from "../../../../src/driver/firestore/Firestore
 import { FirestoreEntityManager } from "../../../../src/entity-manager/FirestoreEntityManager"
 import { EntityNotFoundError } from "../../../../src/error/EntityNotFoundError"
 import { In } from "../../../../src/find-options/operator/In"
+import { IsNull } from "../../../../src/find-options/operator/IsNull"
+import { LessThan } from "../../../../src/find-options/operator/LessThan"
+import { LessThanOrEqual } from "../../../../src/find-options/operator/LessThanOrEqual"
+import { MoreThan } from "../../../../src/find-options/operator/MoreThan"
+import { MoreThanOrEqual } from "../../../../src/find-options/operator/MoreThanOrEqual"
+import { Not } from "../../../../src/find-options/operator/Not"
 import { FirestoreRepository } from "../../../../src/repository/FirestoreRepository"
 import {
     closeTestingConnections,
@@ -12,12 +18,13 @@ import {
     reloadTestingDatabases,
 } from "../../../utils/test-utils"
 import { Post } from "./entity/Post"
+import { Product } from "./entity/Product"
 
 describe("firestore > repository > read", () => {
     let dataSources: DataSource[]
     before(async () => {
         dataSources = await createTestingConnections({
-            entities: [Post],
+            entities: [Post, Product],
             enabledDrivers: ["firestore"],
             schemaCreate: true,
             dropSchema: true,
@@ -120,6 +127,29 @@ describe("firestore > repository > read", () => {
             }),
         ))
 
+    it("should provide the manager to AfterLoad subscribers", () =>
+        Promise.all(
+            dataSources.map(async (dataSource) => {
+                const managers: unknown[] = []
+                const subscriber = {
+                    afterLoad(entity: unknown, event?: { manager?: unknown }) {
+                        managers.push(event?.manager)
+                    },
+                }
+                dataSource.subscribers.push(subscriber)
+                try {
+                    await dataSource.getRepository(Post).findOneBy({ id: "1" })
+                } finally {
+                    dataSource.subscribers.splice(
+                        dataSource.subscribers.indexOf(subscriber),
+                        1,
+                    )
+                }
+                expect(managers).to.have.length(1)
+                expect(managers[0]).to.be.instanceOf(FirestoreEntityManager)
+            }),
+        ))
+
     it("should return only ids when only the primary column is selected", () =>
         Promise.all(
             dataSources.map(async (dataSource) => {
@@ -151,4 +181,152 @@ describe("firestore > repository > read", () => {
                 )
             }),
         ))
+
+    describe("operators", () => {
+        beforeEach(async () => {
+            await Promise.all(
+                dataSources.map((dataSource) =>
+                    (dataSource.driver as FirestoreDriver).adapter.write(
+                        [
+                            {
+                                id: "1",
+                                data: {
+                                    name: "a",
+                                    score: 10,
+                                    releasedAt: new Date("2020-01-01"),
+                                },
+                            },
+                            {
+                                id: "2",
+                                data: {
+                                    name: "b",
+                                    score: 20,
+                                    releasedAt: new Date("2021-01-01"),
+                                },
+                            },
+                            {
+                                id: "3",
+                                data: {
+                                    name: "c",
+                                    score: 30,
+                                    releasedAt: new Date("2022-01-01"),
+                                },
+                            },
+                            {
+                                id: "4",
+                                data: {
+                                    name: "d",
+                                    score: null,
+                                    releasedAt: null,
+                                },
+                            },
+                            { id: "5", data: { name: "e" } },
+                        ].map(({ id, data }) => ({
+                            type: "create" as const,
+                            collection: "product",
+                            id,
+                            data,
+                        })),
+                    ),
+                ),
+            )
+        })
+
+        const idsOf = (products: Product[]) =>
+            products.map((product) => product.id).sort()
+
+        const expectIds = (
+            where: any,
+            expected: string[],
+            extra: Record<string, unknown> = {},
+        ) =>
+            Promise.all(
+                dataSources.map(async (dataSource) => {
+                    const products = await dataSource
+                        .getRepository(Product)
+                        .find({ where, ...extra })
+                    expect(idsOf(products)).to.deep.equal(expected)
+                }),
+            )
+
+        it("should filter with Not(value)", () =>
+            expectIds({ name: Not("a") }, ["2", "3", "4", "5"]))
+
+        it("should filter with Not(value) on the primary column", () =>
+            expectIds({ id: Not("1") }, ["2", "3", "4", "5"]))
+
+        it("should filter with Not(In)", () =>
+            expectIds({ name: Not(In(["a", "b"])) }, ["3", "4", "5"]))
+
+        it("should filter with Not(In) on the primary column", () =>
+            expectIds({ id: Not(In(["1", "2"])) }, ["3", "4", "5"]))
+
+        it("should match only explicit nulls with IsNull", () =>
+            expectIds({ score: IsNull() }, ["4"]))
+
+        it("should exclude nulls and missing fields with Not(IsNull)", () =>
+            expectIds({ score: Not(IsNull()) }, ["1", "2", "3"]))
+
+        it("should filter with MoreThan", () =>
+            expectIds({ score: MoreThan(10) }, ["2", "3"]))
+
+        it("should filter with MoreThanOrEqual", () =>
+            expectIds({ score: MoreThanOrEqual(20) }, ["2", "3"]))
+
+        it("should filter with LessThan", () =>
+            expectIds({ score: LessThan(30) }, ["1", "2"]))
+
+        it("should filter with LessThanOrEqual", () =>
+            expectIds({ score: LessThanOrEqual(20) }, ["1", "2"]))
+
+        it("should filter by Date equality", () =>
+            expectIds({ releasedAt: new Date("2021-01-01") }, ["2"]))
+
+        it("should filter by Date comparison", () =>
+            expectIds({ releasedAt: MoreThan(new Date("2020-06-01")) }, [
+                "2",
+                "3",
+            ]))
+
+        it("should read Date columns back as Date", () =>
+            Promise.all(
+                dataSources.map(async (dataSource) => {
+                    const product = await dataSource
+                        .getRepository(Product)
+                        .findOneBy({ id: "1" })
+                    expect(product!.releasedAt).to.be.instanceOf(Date)
+                    expect(product!.releasedAt!.toISOString()).to.equal(
+                        "2020-01-01T00:00:00.000Z",
+                    )
+                }),
+            ))
+
+        it("should skip documents", () =>
+            Promise.all(
+                dataSources.map(async (dataSource) => {
+                    const products = await dataSource
+                        .getRepository(Product)
+                        .find({ order: { name: "ASC" }, skip: 2, take: 2 })
+                    expect(
+                        products.map((product) => product.name),
+                    ).to.deep.equal(["c", "d"])
+                }),
+            ))
+
+        it("should select only the requested columns", () =>
+            Promise.all(
+                dataSources.map(async (dataSource) => {
+                    const product = await dataSource
+                        .getRepository(Product)
+                        .findOne({
+                            where: { id: "1" },
+                            select: { name: true },
+                        })
+                    expect(product!.id).to.equal("1")
+                    expect(product!.name).to.equal("a")
+                    expect(product!.score).to.be.undefined
+                    expect(product!.releasedAt).to.be.undefined
+                }),
+            ))
+    })
 })
