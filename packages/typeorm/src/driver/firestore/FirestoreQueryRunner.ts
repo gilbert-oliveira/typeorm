@@ -1,7 +1,11 @@
 import type { DataSource } from "../../data-source/DataSource"
 import type { ObjectLiteral } from "../../common/ObjectLiteral"
 import type { EntityManager } from "../../entity-manager/EntityManager"
-import { TypeORMError } from "../../error"
+import {
+    TransactionAlreadyStartedError,
+    TransactionNotStartedError,
+    TypeORMError,
+} from "../../error"
 import type { ReadStream } from "../../platform/PlatformTools"
 import type { QueryResult } from "../../query-runner/QueryResult"
 import type { QueryRunner } from "../../query-runner/QueryRunner"
@@ -21,6 +25,8 @@ import type {
     FirestoreAdapter,
     FirestoreTransactionHandle,
 } from "./FirestoreAdapter"
+
+const ROLLBACK_SENTINEL = new Error("Firestore transaction rolled back")
 
 /**
  * Runs operations on a Firestore database.
@@ -48,6 +54,13 @@ export class FirestoreQueryRunner implements QueryRunner {
     adapter: FirestoreAdapter
 
     transaction?: FirestoreTransactionHandle
+
+    protected transactionPromise?: Promise<void>
+
+    protected releaseTransaction?: {
+        resolve(): void
+        reject(error: unknown): void
+    }
 
     constructor(dataSource: DataSource, adapter: FirestoreAdapter) {
         this.dataSource = dataSource
@@ -78,15 +91,86 @@ export class FirestoreQueryRunner implements QueryRunner {
     }
 
     async startTransaction(isolationLevel?: IsolationLevel): Promise<void> {
-        throw new TypeORMError(`Transactions is not supported by Firestore.`)
+        if (this.isTransactionActive) throw new TransactionAlreadyStartedError()
+
+        this.isTransactionActive = true
+        try {
+            await this.broadcaster.broadcast("BeforeTransactionStart")
+
+            let release!: { resolve(): void; reject(error: unknown): void }
+            const released = new Promise<void>((resolve, reject) => {
+                release = { resolve, reject }
+            })
+            let started!: () => void
+            const ready = new Promise<void>((resolve) => {
+                started = resolve
+            })
+
+            const transactionPromise = this.adapter.runTransaction(
+                async (tx) => {
+                    this.transaction = tx
+                    started()
+                    await released
+                },
+            )
+            transactionPromise.catch(() => undefined)
+            this.releaseTransaction = release
+            this.transactionPromise = transactionPromise
+
+            await Promise.race([ready, transactionPromise])
+        } catch (error) {
+            this.clearTransaction()
+            throw error
+        }
+
+        await this.broadcaster.broadcast("AfterTransactionStart")
     }
 
     async commitTransaction(): Promise<void> {
-        throw new TypeORMError(`Transactions is not supported by Firestore.`)
+        const { releaseTransaction, transactionPromise } = this
+        if (
+            !this.isTransactionActive ||
+            !releaseTransaction ||
+            !transactionPromise
+        )
+            throw new TransactionNotStartedError()
+
+        await this.broadcaster.broadcast("BeforeTransactionCommit")
+        releaseTransaction.resolve()
+        try {
+            await transactionPromise
+        } finally {
+            this.clearTransaction()
+        }
+        await this.broadcaster.broadcast("AfterTransactionCommit")
     }
 
     async rollbackTransaction(): Promise<void> {
-        throw new TypeORMError(`Transactions is not supported by Firestore.`)
+        const { releaseTransaction, transactionPromise } = this
+        if (
+            !this.isTransactionActive ||
+            !releaseTransaction ||
+            !transactionPromise
+        )
+            throw new TransactionNotStartedError()
+
+        await this.broadcaster.broadcast("BeforeTransactionRollback")
+        releaseTransaction.reject(ROLLBACK_SENTINEL)
+        try {
+            await transactionPromise
+        } catch (error) {
+            if (error !== ROLLBACK_SENTINEL) throw error
+        } finally {
+            this.clearTransaction()
+        }
+        await this.broadcaster.broadcast("AfterTransactionRollback")
+    }
+
+    protected clearTransaction(): void {
+        this.transaction = undefined
+        this.transactionPromise = undefined
+        this.releaseTransaction = undefined
+        this.isTransactionActive = false
     }
 
     query(

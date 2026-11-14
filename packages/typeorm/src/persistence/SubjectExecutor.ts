@@ -569,7 +569,7 @@ export class SubjectExecutor {
                     this.queryRunner.manager,
                 )
             ) {
-                await this.queryRunner.manager.update(
+                await this.queryRunner.manager.updateByIdentifierInternal(
                     subject.metadata.target,
                     subject.identifier,
                     subject.createValueSetAndPopChangeMap(),
@@ -706,7 +706,7 @@ export class SubjectExecutor {
                     this.queryRunner.manager,
                 )
             ) {
-                await this.queryRunner.manager.delete(
+                await this.queryRunner.manager.deleteByIdentifiersInternal(
                     subjects[0].metadata.target,
                     deleteMaps,
                 )

@@ -206,39 +206,8 @@ export class FirestoreEntityManager extends EntityManager {
         partialEntity: QueryDeepPartialEntity<Entity>,
     ): Promise<UpdateResult> {
         const metadata = this.dataSource.getMetadata(target)
-        const driver = this.dataSource.driver as FirestoreDriver
         const ids = await this.resolveDocumentIds(metadata, criteria)
-
-        const data: Record<string, unknown> = {}
-        for (const column of metadata.columns) {
-            if (column.isPrimary || column.isVirtual) continue
-            let value = column.getEntityValue(partialEntity)
-            if (value === undefined) {
-                if (!column.isUpdateDate) continue
-                value = new Date()
-            }
-            data[column.databaseName] = driver.preparePersistentValue(
-                value,
-                column,
-            )
-        }
-
-        const result = new UpdateResult()
-        result.affected = ids.length
-        result.raw = []
-        if (ids.length === 0 || Object.keys(data).length === 0) return result
-
-        const runner = this.firestoreQueryRunner
-        await runner.adapter.write(
-            ids.map((id) => ({
-                type: "update" as const,
-                collection: metadata.tableName,
-                id,
-                data,
-            })),
-            runner.transaction,
-        )
-        return result
+        return this.writeUpdate(metadata, ids, partialEntity)
     }
 
     async delete<Entity extends ObjectLiteral>(
@@ -247,21 +216,28 @@ export class FirestoreEntityManager extends EntityManager {
     ): Promise<DeleteResult> {
         const metadata = this.dataSource.getMetadata(target)
         const ids = await this.resolveDocumentIds(metadata, criteria)
-        const result = new DeleteResult()
-        result.affected = ids.length
-        result.raw = []
-        if (ids.length === 0) return result
+        return this.writeDelete(metadata, ids)
+    }
 
-        const runner = this.firestoreQueryRunner
-        await runner.adapter.write(
-            ids.map((id) => ({
-                type: "delete" as const,
-                collection: metadata.tableName,
-                id,
-            })),
-            runner.transaction,
+    async updateByIdentifierInternal<Entity extends ObjectLiteral>(
+        target: EntityTarget<Entity>,
+        identifier: ObjectLiteral,
+        partialEntity: QueryDeepPartialEntity<Entity>,
+    ): Promise<UpdateResult> {
+        const metadata = this.dataSource.getMetadata(target)
+        const [id] = this.identifiersToIds(metadata, [identifier])
+        return this.writeUpdate(metadata, [id], partialEntity)
+    }
+
+    async deleteByIdentifiersInternal<Entity extends ObjectLiteral>(
+        target: EntityTarget<Entity>,
+        identifiers: ObjectLiteral[],
+    ): Promise<DeleteResult> {
+        const metadata = this.dataSource.getMetadata(target)
+        return this.writeDelete(
+            metadata,
+            this.identifiersToIds(metadata, identifiers),
         )
-        return result
     }
 
     async findByIdsInternal<Entity extends ObjectLiteral>(
@@ -313,6 +289,77 @@ export class FirestoreEntityManager extends EntityManager {
             entities,
         )
         return entities
+    }
+
+    private identifiersToIds(
+        metadata: EntityMetadata,
+        identifiers: ObjectLiteral[],
+    ): string[] {
+        const primary = metadata.primaryColumns[0]
+        const ids = identifiers.map((identifier) =>
+            primary.getEntityValue(identifier),
+        )
+        ids.forEach((id) => assertValidDocumentId(id))
+        return [...new Set<string>(ids)]
+    }
+
+    private async writeUpdate(
+        metadata: EntityMetadata,
+        ids: string[],
+        partialEntity: ObjectLiteral,
+    ): Promise<UpdateResult> {
+        const driver = this.dataSource.driver as FirestoreDriver
+        const data: Record<string, unknown> = {}
+        for (const column of metadata.columns) {
+            if (column.isPrimary || column.isVirtual) continue
+            let value = column.getEntityValue(partialEntity)
+            if (value === undefined) {
+                if (!column.isUpdateDate) continue
+                value = new Date()
+            }
+            data[column.databaseName] = driver.preparePersistentValue(
+                value,
+                column,
+            )
+        }
+
+        const result = new UpdateResult()
+        result.affected = ids.length
+        result.raw = []
+        if (ids.length === 0 || Object.keys(data).length === 0) return result
+
+        const runner = this.firestoreQueryRunner
+        await runner.adapter.write(
+            ids.map((id) => ({
+                type: "update" as const,
+                collection: metadata.tableName,
+                id,
+                data,
+            })),
+            runner.transaction,
+        )
+        return result
+    }
+
+    private async writeDelete(
+        metadata: EntityMetadata,
+        ids: string[],
+    ): Promise<DeleteResult> {
+        const result = new DeleteResult()
+        result.affected = ids.length
+        result.raw = []
+        if (ids.length === 0) return result
+
+        const runner = this.firestoreQueryRunner
+        await runner.adapter.write(
+            ids.map((id) => ({
+                type: "delete" as const,
+                collection: metadata.tableName,
+                id,
+            })),
+            runner.transaction,
+        )
+        return result
     }
 
     private async resolveDocumentIds(

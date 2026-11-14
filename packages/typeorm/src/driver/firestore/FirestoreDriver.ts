@@ -49,7 +49,7 @@ export class FirestoreDriver implements Driver {
 
     treeSupport = false
 
-    transactionSupport = "none" as const
+    transactionSupport = "simple" as const
 
     supportedDataTypes: ColumnType[] = [
         "string",

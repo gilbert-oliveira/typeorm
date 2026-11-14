@@ -10,6 +10,8 @@ import { FIRESTORE_DOCUMENT_ID } from "./FirestoreQuery"
 
 const MAX_BATCH_SIZE = 500
 
+const transactionWriteCounts = new WeakMap<object, number>()
+
 export class AdminFirestoreAdapter implements FirestoreAdapter {
     constructor(
         protected firestore: any,
@@ -69,6 +71,15 @@ export class AdminFirestoreAdapter implements FirestoreAdapter {
     ): Promise<void> {
         if (tx) {
             const transaction = this.asTransaction(tx)
+            const total =
+                (transactionWriteCounts.get(transaction) ?? 0) +
+                operations.length
+            if (total > MAX_BATCH_SIZE) {
+                throw new TypeORMError(
+                    `Firestore transactions support at most ${MAX_BATCH_SIZE} writes.`,
+                )
+            }
+            transactionWriteCounts.set(transaction, total)
             for (const operation of operations) {
                 this.applyOperation(transaction, operation)
             }
