@@ -13,7 +13,6 @@ import { NestedSetSubjectExecutor } from "./tree/NestedSetSubjectExecutor"
 import { ClosureSubjectExecutor } from "./tree/ClosureSubjectExecutor"
 import { MaterializedPathSubjectExecutor } from "./tree/MaterializedPathSubjectExecutor"
 import { OrmUtils } from "../util/OrmUtils"
-import type { InsertResult } from "../query-builder/result/InsertResult"
 import type { UpdateResult } from "../query-builder/result/UpdateResult"
 import { ObjectUtils } from "../util/ObjectUtils"
 import { InstanceChecker } from "../util/InstanceChecker"
@@ -365,10 +364,7 @@ export class SubjectExecutor {
             const bulkInsertMaps: ObjectLiteral[] = []
             const bulkInsertSubjects: Subject[] = []
             const singleInsertSubjects: Subject[] = []
-            if (
-                this.queryRunner.dataSource.driver.options.type === "mongodb" ||
-                this.queryRunner.dataSource.driver.options.type === "firestore"
-            ) {
+            if (this.queryRunner.dataSource.driver.options.type === "mongodb") {
                 subjects.forEach((subject) => {
                     if (subject.metadata.createDateColumn && subject.entity) {
                         subject.entity[
@@ -379,6 +375,27 @@ export class SubjectExecutor {
                     if (subject.metadata.updateDateColumn && subject.entity) {
                         subject.entity[
                             subject.metadata.updateDateColumn.databaseName
+                        ] = new Date()
+                    }
+
+                    subject.createValueSetAndPopChangeMap()
+
+                    bulkInsertSubjects.push(subject)
+                    bulkInsertMaps.push(subject.entity!)
+                })
+            } else if (
+                this.queryRunner.dataSource.driver.options.type === "firestore"
+            ) {
+                subjects.forEach((subject) => {
+                    if (subject.metadata.createDateColumn && subject.entity) {
+                        subject.entity[
+                            subject.metadata.createDateColumn.propertyName
+                        ] = new Date()
+                    }
+
+                    if (subject.metadata.updateDateColumn && subject.entity) {
+                        subject.entity[
+                            subject.metadata.updateDateColumn.propertyName
                         ] = new Date()
                     }
 
@@ -419,21 +436,26 @@ export class SubjectExecutor {
 
             // for mongodb we have a bit different insertion logic
             if (
-                InstanceChecker.isMongoEntityManager(
-                    this.queryRunner.manager,
-                ) ||
+                InstanceChecker.isMongoEntityManager(this.queryRunner.manager)
+            ) {
+                const insertResult = await this.queryRunner.manager.insert(
+                    subjects[0].metadata.target,
+                    bulkInsertMaps,
+                )
+                subjects.forEach((subject, index) => {
+                    subject.identifier = insertResult.identifiers[index]
+                    subject.generatedMap = insertResult.generatedMaps[index]
+                    subject.insertedValueSet = bulkInsertMaps[index]
+                })
+            } else if (
                 InstanceChecker.isFirestoreEntityManager(
                     this.queryRunner.manager,
                 )
             ) {
-                const insertResult = await (
-                    this.queryRunner.manager as {
-                        insert(
-                            target: Function | string,
-                            entity: ObjectLiteral[],
-                        ): Promise<InsertResult>
-                    }
-                ).insert(subjects[0].metadata.target, bulkInsertMaps)
+                const insertResult = await this.queryRunner.manager.insert(
+                    subjects[0].metadata.target,
+                    bulkInsertMaps,
+                )
                 subjects.forEach((subject, index) => {
                     subject.identifier = insertResult.identifiers[index]
                     subject.generatedMap = insertResult.generatedMaps[index]
@@ -569,10 +591,22 @@ export class SubjectExecutor {
                     this.queryRunner.manager,
                 )
             ) {
+                const partialEntity = subject.createValueSetAndPopChangeMap()
+                const updateDateColumn = subject.metadata.updateDateColumn
+                if (updateDateColumn) {
+                    const updatedAt = new Date()
+                    updateDateColumn.setEntityValue(partialEntity, updatedAt)
+                    if (subject.entity) {
+                        updateDateColumn.setEntityValue(
+                            subject.entity,
+                            updatedAt,
+                        )
+                    }
+                }
                 await this.queryRunner.manager.updateByIdentifierInternal(
                     subject.metadata.target,
                     subject.identifier,
-                    subject.createValueSetAndPopChangeMap(),
+                    partialEntity,
                 )
             } else {
                 const updateMap: ObjectLiteral =

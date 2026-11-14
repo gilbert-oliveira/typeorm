@@ -1,12 +1,14 @@
 import "reflect-metadata"
 import { expect } from "chai"
 import type { DataSource } from "../../../../src/data-source/DataSource"
+import { TypeORMError } from "../../../../src/error/TypeORMError"
 import type { FirestoreDriver } from "../../../../src/driver/firestore/FirestoreDriver"
 import {
     closeTestingConnections,
     createTestingConnections,
     reloadTestingDatabases,
 } from "../../../utils/test-utils"
+import { NamedDatePost } from "./entity/NamedDatePost"
 import { Tag } from "./entity/Tag"
 import { WritePost } from "./entity/WritePost"
 
@@ -14,7 +16,7 @@ describe("firestore > repository > write", () => {
     let dataSources: DataSource[]
     before(async () => {
         dataSources = await createTestingConnections({
-            entities: [WritePost, Tag],
+            entities: [WritePost, Tag, NamedDatePost],
             enabledDrivers: ["firestore"],
             schemaCreate: true,
             dropSchema: true,
@@ -203,6 +205,99 @@ describe("firestore > repository > write", () => {
                     (await repository.delete(["1", "missing"])).affected,
                 ).to.equal(1)
                 expect(await repository.count()).to.equal(0)
+            }),
+        ))
+
+    const malformedCriteria: [string, unknown][] = [
+        ["a number", 123],
+        ["a date", new Date()],
+        ["a boolean", true],
+        ["undefined", undefined],
+        ["null", null],
+        ["an empty string", ""],
+        ["an empty array", []],
+        ["an empty object", {}],
+        ["an object with only undefined values", { id: undefined }],
+        ["an object with an undefined value", { title: "a", text: undefined }],
+        ["an array with a number", ["1", 1]],
+        ["an array of objects", [{ id: "1" }]],
+        ["an array with an empty string", ["1", ""]],
+    ]
+
+    malformedCriteria.forEach(([name, criteria]) => {
+        it(`should reject update and delete with ${name} without touching the collection`, () =>
+            Promise.all(
+                dataSources.map(async (dataSource) => {
+                    const repository = dataSource.getRepository(WritePost)
+                    await repository.save([
+                        new WritePost({ id: "1", title: "a" }),
+                        new WritePost({ id: "2", title: "b" }),
+                    ])
+
+                    for (const run of [
+                        () => repository.delete(criteria as any),
+                        () =>
+                            repository.update(criteria as any, { title: "z" }),
+                    ]) {
+                        let error: unknown
+                        try {
+                            await run()
+                        } catch (e) {
+                            error = e
+                        }
+                        expect(error).to.be.instanceOf(TypeORMError)
+                    }
+
+                    const posts = await repository.find({
+                        order: { id: "ASC" },
+                    })
+                    expect(posts.map((post) => post.title)).to.deep.equal([
+                        "a",
+                        "b",
+                    ])
+                }),
+            ))
+    })
+
+    it("should set create and update dates by property name", () =>
+        Promise.all(
+            dataSources.map(async (dataSource) => {
+                const repository = dataSource.getRepository(NamedDatePost)
+                const post = new NamedDatePost({ id: "1", title: "a" })
+                await repository.save(post)
+                expect(post.createdAt).to.be.instanceOf(Date)
+                expect(post.updatedAt).to.be.instanceOf(Date)
+                expect(post).to.not.have.property("created_at")
+                expect(post).to.not.have.property("updated_at")
+
+                const [document] = await adapterOf(dataSource).getDocuments(
+                    "named_date_post",
+                    ["1"],
+                )
+                expect(document.data).to.have.property("created_at")
+                expect(document.data).to.have.property("updated_at")
+            }),
+        ))
+
+    it("should reflect the written updatedAt on the entity after saving an existing entity", () =>
+        Promise.all(
+            dataSources.map(async (dataSource) => {
+                const repository = dataSource.getRepository(NamedDatePost)
+                await repository.save(
+                    new NamedDatePost({ id: "1", title: "a" }),
+                )
+                const post = (await repository.findOneBy({ id: "1" }))!
+                const before = post.updatedAt
+                await new Promise((resolve) => setTimeout(resolve, 20))
+                post.title = "b"
+                await repository.save(post)
+                expect(post.updatedAt.getTime()).to.be.greaterThan(
+                    before.getTime(),
+                )
+                const reloaded = (await repository.findOneBy({ id: "1" }))!
+                expect(reloaded.updatedAt.getTime()).to.equal(
+                    post.updatedAt.getTime(),
+                )
             }),
         ))
 })
